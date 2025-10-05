@@ -17,6 +17,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import br.com.suafinanca.finance_api.security.JwtTokenService;
+import org.springframework.security.core.Authentication;
+
 
 @RestController
 @RequestMapping("/api/auth")
@@ -32,7 +35,7 @@ public class AuthController {
 
     //Token não e mesmo
 
-    @PostMapping("/Registrar")
+    @PostMapping("/registrar")
     public ResponseEntity<?> registrar (@RequestBody @Valid RegistroDto registroDto){
         if(usuarioRepository.findByEmail(registroDto.email()). isPresent()){
             return ResponseEntity.badRequest().body("Erro: E-mail já esta em uso!");
@@ -48,14 +51,21 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body("Usuario registrado com sucesso");
     }
 
+    @Autowired
+    private JwtTokenService tokenService; // essa parte e pra adicionar o serviço do token
+
     @PostMapping("/login")
     public ResponseEntity<TokenDto> login(@RequestBody @Valid LoginDto loginDto){
         var usernamePassword =  new UsernamePasswordAuthenticationToken(loginDto.email(), loginDto.senha());
-        var auth = this.authenticationManager.authenticate(usernamePassword);
 
-        var usuario = (Usuario) auth.getPrincipal();
+        Authentication auth = this.authenticationManager.authenticate(usernamePassword);
 
-        String token = "TOKEN_JWT_DE_TESTE_PARA" + usuario.getEmail();
+        String userEmail = auth.getName();
+
+        var usuario = usuarioRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("Usuario não encontrado após autenticação"));
+
+        String token = tokenService.generateToken(usuario);
 
         return ResponseEntity.ok(new TokenDto(token));
     }
